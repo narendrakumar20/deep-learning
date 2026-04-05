@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AI-powered chest X-ray analysis for pneumonia detection using deep learning.">
+    <title>Pneumonia Detection — AI Chest X-Ray Analyzer</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🫁</text></svg>">
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <span class="header__icon">🫁</span>
+        <h1 class="header__title">Pneumonia Detection</h1>
+        <p class="header__subtitle">AI-powered chest X-ray analysis using deep learning</p>
+    </header>
+
+    <!-- Main Card -->
+    <main class="card" id="mainCard">
+
+        <!-- Upload Zone -->
+        <div class="upload-zone" id="uploadZone">
+            <span class="upload-zone__icon">📤</span>
+            <p class="upload-zone__text">
+                <strong>Click to upload</strong> or drag & drop<br>
+                your chest X-ray image here
+            </p>
+            <p class="upload-zone__formats">Supports PNG, JPG, JPEG, BMP, WEBP</p>
+            <input type="file" id="fileInput" accept="image/*">
+        </div>
+
+        <!-- Image Preview -->
+        <div class="preview" id="preview">
+            <div class="preview__container">
+                <img class="preview__image" id="previewImage" alt="Uploaded X-ray preview">
+                <div class="preview__filename">
+                    <span>📎</span>
+                    <span id="fileName">image.jpg</span>
+                    <button class="preview__remove" id="removeBtn">✕ Remove</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analyze Button -->
+        <button class="btn-analyze" id="analyzeBtn" disabled>
+            <span class="btn-analyze__spinner"></span>
+            <span class="btn-analyze__label">🔬 Analyze X-Ray</span>
+        </button>
+
+        <!-- Error -->
+        <div class="error" id="errorBox">
+            <span>⚠️</span>
+            <span id="errorText"></span>
+        </div>
+
+        <!-- Result -->
+        <div class="result" id="result">
+            <div class="result__card" id="resultCard">
+                <span class="result__icon" id="resultIcon"></span>
+                <div class="result__label" id="resultLabel"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>Powered by TensorFlow &amp; Deep Learning · For educational &amp; research purposes only</p>
+    </footer>
+
+    <script>
+        // ── DOM Elements ──────────────────────────────────────────────────
+        const uploadZone = document.getElementById("uploadZone");
+        const fileInput = document.getElementById("fileInput");
+        const preview = document.getElementById("preview");
+        const previewImage = document.getElementById("previewImage");
+        const fileName = document.getElementById("fileName");
+        const removeBtn = document.getElementById("removeBtn");
+        const analyzeBtn = document.getElementById("analyzeBtn");
+        const errorBox = document.getElementById("errorBox");
+        const errorText = document.getElementById("errorText");
+        const result = document.getElementById("result");
+        const resultCard = document.getElementById("resultCard");
+        const resultIcon = document.getElementById("resultIcon");
+        const resultLabel = document.getElementById("resultLabel");
+
+        let selectedFile = null;
+
+        // ── Upload Zone Events ────────────────────────────────────────────
+        uploadZone.addEventListener("click", () => fileInput.click());
+
+        uploadZone.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            uploadZone.classList.add("dragover");
+        });
+
+        uploadZone.addEventListener("dragleave", () => {
+            uploadZone.classList.remove("dragover");
+        });
+
+        uploadZone.addEventListener("drop", (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove("dragover");
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener("change", () => {
+            if (fileInput.files.length > 0) {
+                handleFile(fileInput.files[0]);
+            }
+        });
+
+        removeBtn.addEventListener("click", resetUI);
+
+        // ── File Handling ─────────────────────────────────────────────────
+        function handleFile(file) {
+            if (!file.type.startsWith("image/")) {
+                showError("Please upload a valid image file.");
+                return;
+            }
+
+            selectedFile = file;
+            hideError();
+            result.classList.remove("visible");
+
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImage.src = e.target.result;
+                fileName.textContent = file.name;
+                preview.classList.add("visible");
+                uploadZone.style.display = "none";
+                analyzeBtn.disabled = false;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function resetUI() {
+            selectedFile = null;
+            fileInput.value = "";
+            preview.classList.remove("visible");
+            result.classList.remove("visible");
+            uploadZone.style.display = "";
+            analyzeBtn.disabled = true;
+            hideError();
+        }
+
+        // ── Analyze ───────────────────────────────────────────────────────
+        analyzeBtn.addEventListener("click", async () => {
+            if (!selectedFile) return;
+
+            analyzeBtn.disabled = true;
+            analyzeBtn.classList.add("loading");
+            hideError();
+            result.classList.remove("visible");
+
+            const formData = new FormData();
+            formData.append("file", selectedFile);
+
+            try {
+                const response = await fetch("/predict", {
+                    method: "POST",
+                    body: formData,
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showError(data.error || "Prediction failed.");
+                    return;
+                }
+
+                showResult(data);
+            } catch (err) {
+                showError("Network error. Is the server running?");
+            } finally {
+                analyzeBtn.disabled = false;
+                analyzeBtn.classList.remove("loading");
+            }
+        });
+
+        // ── Display Result ────────────────────────────────────────────────
+        function showResult(data) {
+            const isPositive = data.label === "PNEUMONIA POSITIVE";
+
+            resultCard.className = "result__card " + (isPositive ? "pneumonia" : "normal");
+            resultIcon.textContent = isPositive ? "⚠️" : "✅";
+            resultLabel.textContent = data.label;
+
+            result.classList.add("visible");
+        }
+
+        // ── Error Handling ────────────────────────────────────────────────
+        function showError(msg) {
+            errorText.textContent = msg;
+            errorBox.classList.add("visible");
+        }
+
+        function hideError() {
+            errorBox.classList.remove("visible");
+        }
+    </script>
+</body>
+</html>
