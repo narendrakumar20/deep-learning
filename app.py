@@ -13,7 +13,8 @@ from tensorflow import keras
 
 # ── Configuration ────────────────────────────────────────────────────────────
 IMG_SIZE = (150, 150)
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "model", "pneumonia_model.h5")
+MODEL_DIR = os.path.join(os.path.dirname(__file__), "model")
+MODEL_PATH = os.path.join(MODEL_DIR, "pneumonia_model.h5")
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "static", "uploads")
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "bmp", "webp"}
 
@@ -27,7 +28,10 @@ model = None
 
 def load_model():
     global model
+    os.makedirs(MODEL_DIR, exist_ok=True)
+
     if os.path.isfile(MODEL_PATH):
+        app.logger.info("Loading model from %s", MODEL_PATH)
         print(f"📦 Loading model from {MODEL_PATH}...")
         model = keras.models.load_model(MODEL_PATH)
         print("✅ Model loaded successfully!")
@@ -43,6 +47,7 @@ def load_model():
             print(f"🔍 Dataset Classes: {temp_ds.class_names}")
             # If temp_ds.class_names[0] is PNEUMONIA, indices are flipped!
     else:
+        app.logger.warning("Model not found at %s", MODEL_PATH)
         print(f"⚠️  Model not found at {MODEL_PATH}")
         print("   Run 'python train.py' first to train the model.")
 
@@ -79,7 +84,7 @@ def index():
 @app.route("/predict", methods=["POST"])
 def predict():
     if model is None:
-        return jsonify({"error": "Model not loaded. Train the model first."}), 500
+        return jsonify({"error": "Model not loaded. Train the model first."}), 503
 
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
@@ -109,4 +114,8 @@ def predict():
 
 if __name__ == "__main__":
     load_model()
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(
+        debug=False,
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000)),
+    )
